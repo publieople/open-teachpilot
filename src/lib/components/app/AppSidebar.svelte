@@ -32,7 +32,7 @@
 				<img
 					src="{WEBUI_BASE_URL}/static/splash.png"
 					class="size-11 dark:invert p-0.5"
-					alt="logo"
+					alt="TeachPilot logo"
 					draggable="false"
 				/>
 			</button>
@@ -57,7 +57,7 @@
 			<img
 				src="{WEBUI_BASE_URL}/static/favicon.png"
 				class="size-10 {selected === '' ? 'rounded-2xl' : 'rounded-full'}"
-				alt="logo"
+				alt="TeachPilot logo"
 				draggable="false"
 			/>
 		</button>
@@ -69,3 +69,10 @@
 		</button>
 	</div> -->
 </nav>
+
+<!-- Powered by Open WebUI - 右下角标识 -->
+<div class="fixed bottom-2 right-2 text-xs text-gray-400 dark:text-gray-600 z-50">
+	<a href="https://openwebui.com" target="_blank" class="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">
+		Powered by Open WebUI
+	</a>
+</div>

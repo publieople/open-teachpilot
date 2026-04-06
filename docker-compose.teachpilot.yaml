@@ -1,0 +1,72 @@
+# TeachPilot Docker Compose 开发环境配置
+# 基于 Open WebUI 二次开发的多模态 AI 互动式教学智能体
+# 服务外包大赛 A04 题目 - 锐捷网络
+
+services:
+  teachpilot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: teachpilot
+    volumes:
+      - teachpilot-data:/app/backend/data
+      # 挂载知识库目录（计算机学科资料）
+      - ./knowledge-base:/app/knowledge-base:ro
+    ports:
+      - "${OPEN_WEBUI_PORT-3000}:8080"
+    environment:
+      # 品牌化配置
+      - 'WEBUI_NAME=TeachPilot'
+      - 'WEBUI_FAVICON_URL=/static/favicon.png'
+      
+      # 模型配置 - OpenRouter API
+      - 'OPENAI_API_BASE_URL=https://openrouter.ai/api/v1'
+      - 'OPENAI_API_KEY=${OPENROUTER_API_KEY:-}'
+      
+      # 默认模型配置
+      - 'DEFAULT_MODEL=qwen/qwen3.6-plus:free'
+      
+      # RAG 配置
+      - 'RAG_TOP_K=5'
+      - 'RAG_RELEVANCE_THRESHOLD=0.3'
+      - 'CHUNK_SIZE=500'
+      - 'CHUNK_OVERLAP=50'
+      
+      # 文件上传配置
+      - 'MAX_FILE_SIZE=104857600'  # 100MB
+      
+      # 开发环境配置
+      - 'DOCKER=True'
+      - 'ENV=dev'
+      - 'GLOBAL_LOG_LEVEL=INFO'
+      
+      # 隐私保护配置（比赛要求）
+      - 'SCARF_NO_ANALYTICS=true'
+      - 'DO_NOT_TRACK=true'
+      - 'ANONYMIZED_TELEMETRY=false'
+      
+      # 数据库配置（默认 SQLite，生产环境可改用 PostgreSQL）
+      - 'DATABASE_URL=sqlite:///./data/webui.db'
+      
+      # CORS 配置（开发环境允许所有来源）
+      - 'CORS_ALLOW_ORIGIN=*'
+      
+      # 安全配置
+      - 'WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-}'
+      - 'FORWARDED_ALLOW_IPS=*'
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    restart: unless-stopped
+
+# 数据卷
+volumes:
+  teachpilot-data:
+    driver: local
+    name: teachpilot-data

@@ -1,1 +1,21 @@
-{}
+{
+  "name": "TeachPilot",
+  "short_name": "TeachPilot",
+  "description": "多模态 AI 互动式教学智能体 - 计算机学科 Python 入门教学助手",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#171717",
+  "theme_color": "#171717",
+  "icons": [
+    {
+      "src": "/static/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
