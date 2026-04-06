@@ -1,0 +1,164 @@
+# TeachPilot 生产环境 Docker Compose 配置
+# 服务外包大赛 A04 题目 - 多模态 AI 互动式教学智能体
+#
+# 使用说明：
+# 1. 复制 .env.teachpilot 为 .env
+# 2. 修改 .env 中的配置项
+# 3. 运行：docker-compose -f docker-compose.teachpilot.prod.yaml up -d
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: teachpilot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-teachpilot}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_in_production}
+      POSTGRES_DB: teachpilot
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-teachpilot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - teachpilot-network
+
+  # Redis 缓存和会话存储
+  redis:
+    image: redis:7-alpine
+    container_name: teachpilot-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme_in_production}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--pass", "${REDIS_PASSWORD:-changeme_in_production}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - teachpilot-network
+
+  # ChromaDB 向量数据库（RAG）
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: teachpilot-chromadb
+    restart: unless-stopped
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_AUTHN_CREDENTIALS=${CHROMA_PASSWORD:-changeme_in_production}
+      - CHROMA_SERVER_AUTHN_PROVIDER=${CHROMA_AUTH_PROVIDER:-chromadb.auth.token_authn.TokenAuthenticationServerProvider}
+      - IS_PERSISTENT=TRUE
+    networks:
+      - teachpilot-network
+
+  # TeachPilot 主应用
+  teachpilot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: teachpilot-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    volumes:
+      - teachpilot-data:/app/backend/data
+      - ./knowledge-base:/app/knowledge-base:ro
+    ports:
+      - "${OPEN_WEBUI_PORT-3000}:8080"
+    environment:
+      # 应用配置
+      - 'WEBUI_NAME=TeachPilot'
+      - 'WEBUI_FAVICON_URL=/static/favicon.png'
+      - 'ENV=prod'
+      - 'DOCKER=True'
+      
+      # 数据库配置
+      - 'DATABASE_URL=postgresql://${DB_USER:-teachpilot}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/teachpilot'
+      
+      # Redis 配置
+      - 'REDIS_URL=redis://:${REDIS_PASSWORD:-changeme_in_production}@redis:6379/0'
+      
+      # ChromaDB 配置
+      - 'CHROMA_URL=http://chromadb:8000'
+      - 'CHROMA_TENANT=default_tenant'
+      - 'CHROMA_DATABASE=default_database'
+      
+      # 模型配置
+      - 'OPENAI_API_BASE_URL=https://openrouter.ai/api/v1'
+      - 'OPENAI_API_KEY=${OPENROUTER_API_KEY}'
+      - 'DEFAULT_MODEL=qwen/qwen3.6-plus:free'
+      
+      # RAG 配置
+      - 'RAG_TOP_K=5'
+      - 'RAG_RELEVANCE_THRESHOLD=0.3'
+      - 'CHUNK_SIZE=500'
+      - 'CHUNK_OVERLAP=50'
+      
+      # 安全配置
+      - 'WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}'
+      - 'FORWARDED_ALLOW_IPS=127.0.0.1'
+      - 'CORS_ALLOW_ORIGIN=${CORS_ALLOW_ORIGIN:-https://your-domain.com}'
+      
+      # 日志配置
+      - 'GLOBAL_LOG_LEVEL=INFO'
+      - 'LOG_FORMAT=json'
+      
+      # 隐私保护
+      - 'SCARF_NO_ANALYTICS=true'
+      - 'DO_NOT_TRACK=true'
+      - 'ANONYMIZED_TELEMETRY=false'
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - teachpilot-network
+
+  # Nginx 反向代理（可选，用于 HTTPS）
+  nginx:
+    image: nginx:alpine
+    container_name: teachpilot-nginx
+    restart: unless-stopped
+    depends_on:
+      - teachpilot
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - teachpilot-network
+
+# 网络
+networks:
+  teachpilot-network:
+    driver: bridge
+
+# 数据卷
+volumes:
+  postgres-data:
+    driver: local
+    name: teachpilot-postgres-data
+  redis-data:
+    driver: local
+    name: teachpilot-redis-data
+  chroma-data:
+    driver: local
+    name: teachpilot-chroma-data
+  teachpilot-data:
+    driver: local
+    name: teachpilot-app-data
